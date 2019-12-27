@@ -4,6 +4,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.hamcrest.Matchers;
@@ -106,5 +107,53 @@ public class UsersJsonTest {
 			.body("filhos.name", hasItem(Arrays.asList("Zezinho", "Luizinho"))) // nesse caso é uma lista dentro de outra lista
 			.body("salary", contains(1234.5678f, 2500, null))
 		;
+	}
+	
+	@Test
+	public void deveFazerVerificacaoAvancada() {
+		given()
+		.when()
+			.get("http://restapi.wcaquino.me/users")
+		.then()
+			.statusCode(200)
+			.body("$", hasSize(3))
+			.body("age.findAll{it <= 25}.size()", is(2)) // findAll aqui é um metodo para iteraração e é delimitado entre chaves
+			.body("age.findAll{it > 20 && it <= 25}.size()", is(1))
+			.body("findAll{it.age > 20 && it.age <= 25}.name", hasItem("Maria Joaquina"))
+			.body("findAll{it.age <= 25}[0].name", is("Maria Joaquina")) // Essa é forma que se consegue transformar a lista em um objeto podendo usar o is
+			.body("findAll{it.age <= 25}[-1].name", is("Ana Júlia"))  // Se quiser o ultimo registro coloca-se no indice -1 pq ele começa debaixo para cima 
+			.body("find{it.age <= 25}.name", is("Maria Joaquina"))  // O find retorna apenas um objeto
+			
+			//OBS: TODAS ESSAS ANOTAÇÕES SÃO BASEADAS NO GRUV
+			
+			.body("findAll{it.name.contains('n')}.name", hasItems("Maria Joaquina", "Ana Júlia"))
+			.body("findAll{it.name.length() > 10}.name", hasItems("João da Silva", "Maria Joaquina")) // usa o length() para seber o numero de caracteres por exemplo
+			.body("name.collect{it.toUpperCase()}", hasItem("MARIA JOAQUINA")) // metodo que itera pela lista e faz uma modifição em cima dela 
+			
+//			.body("findAll{it.name}.name.collect{it.toUpperCase()}", hasItems("JOÃO DA SILVA", "MARIA JOAQUINA", "ANA JÚLIA"))
+//			.body("name.collect{it.toUpperCase()}", hasItems("JOÃO DA SILVA", "MARIA JOAQUINA", "ANA JÚLIA")) 
+			
+			.body("name.findAll{it.startsWith('Maria')}.collect{it.toUpperCase()}", hasItem("MARIA JOAQUINA"))
+			.body("name.findAll{it.startsWith('Maria')}.collect{it.toUpperCase()}.toArray()", allOf(arrayContaining("MARIA JOAQUINA"), arrayWithSize(1)))
+			.body("age.collect{it * 2}", hasItems(60, 50, 40))
+			.body("id.max()", is(3))
+			.body("salary.min()", is(1234.5678f))
+		;
+	}
+	
+	@Test
+	public void devoUnirJsonPathComJava() {
+		ArrayList<String> names = 
+			given()
+			.when()
+				.get("http://restapi.wcaquino.me/users")
+			.then()
+				.statusCode(200)
+				.body("name.findAll{it.startsWith('Maria')}.collect{it.toUpperCase()}.toArray()", allOf(arrayContaining("MARIA JOAQUINA"), arrayWithSize(1)))
+				.extract().path("name.findAll{it.startsWith('Maria')}") // Essa extração retorna uma lista de String
+			; 
+		
+		Assert.assertEquals(1, names.size());
+		Assert.assertEquals(names.get(0).toUpperCase(), "Maria Joaquina".toUpperCase());
 	}
 }
